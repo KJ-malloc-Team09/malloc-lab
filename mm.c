@@ -81,7 +81,7 @@ static void *last_bp;       // 이 변수는 다른 파일에서 여러번 접�
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
-static void *first_fit(size_t asize);
+static void *find_fit(size_t asize);
 static void *next_fit(size_t asize);
 static void place(void *bp, size_t asize);
 
