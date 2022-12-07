@@ -100,7 +100,7 @@ static void *find_fit(size_t asize)
             return bp;
         }
     }
-    for (bp = heap_listp; bp < last_bp; bp = NEXT_BLKP(bp)){
+    for (bp = heap_listp; (char *)bp < last_bp; bp = NEXT_BLKP(bp)){
         if (!GET_ALLOC(HDRP(bp)) && ( asize <= GET_SIZE(HDRP(bp)))){
             last_bp = bp;
             return bp;
@@ -256,22 +256,64 @@ void mm_free(void *ptr)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    void *oldptr = ptr;
-    void *newptr;
-    size_t copySize;
+    void *old_ptr = ptr;
+    size_t old_size = GET_SIZE(HDRP(old_ptr));
+    size_t size_with_hf = size + (2 * WSIZE);
+
+    if (old_size < 0){
+        return NULL;
+    }
+    else if (old_size == 0){
+        mm_free(old_ptr);
+        return NULL;
+    }
+    //현재 잡고 있는 메모리가 요청한 메모리보다 큰 경우
+    //ptr을 재활용
+    if (old_size >= size_with_hf){
+        return ptr; 
+    }
+    // 새로 할당해야하는 크기가 ptr이 가리키고있는 블록보다 클 경우 
+    else {
+        size_t new_size = GET_SIZE(HDRP(NEXT_BLKP(ptr))) + old_size;
+        //다음 블록이 비었고, 현재 블록크기와 다음 블록의 크기의 합이 요청한블록보다 클 경우 
+        if(!GET_ALLOC(HDRP(NEXT_BLKP(old_ptr))) && new_size >= size_with_hf){
+            // malloc을 하지 않고 기존의 old_ptr을 재사용
+            PUT(HDRP(ptr), PACK(new_size, 1));
+            PUT(FTRP(ptr), PACK(new_size ,1));
+            return ptr; 
+        }
+        else{
+            void *new_ptr;
+            //위 케이스에 아무것도 해당되지 않아 새로 할당해줘야 하는 경우 
+            new_ptr = mm_malloc(size_with_hf);
+            
+            if (new_ptr == NULL)
+                return NULL;
+            
+            memcpy(new_ptr, old_ptr, old_size);
+            // memmove(new_ptr, old_ptr, size_with_hf);
+            mm_free(old_ptr);
+            
+            return new_ptr;
+        }
+    }
+
+    // void *oldptr = ptr;
+    // void *newptr;
+    // size_t copySize;
     
-    newptr = mm_malloc(size);
-    if (newptr == NULL)
-      return NULL;
+    // newptr = mm_malloc(size);
+    // if (newptr == NULL)
+    //   return NULL;
     // copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-    //implicit test
-    copySize = GET_SIZE(HDRP(oldptr));
-    if (size < copySize)
-      copySize = size;
-    memcpy(newptr, oldptr, copySize);
-    // memmove(newptr, oldptr, copySize);
-    mm_free(oldptr);
-    return newptr;
+    // //implicit test
+    // copySize = GET_SIZE(HDRP(oldptr));
+    // if (size < copySize)
+    //   copySize = size;
+    // memcpy(newptr, oldptr, copySize);
+    // // memmove(newptr, oldptr, copySize);
+    // mm_free(oldptr);
+    // return newptr;
 }
 
 
